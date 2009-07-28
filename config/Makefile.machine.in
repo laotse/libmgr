@@ -1,0 +1,14 @@
+CPU:=@target_cpu@
+TARGET:=@target_os@
+EXE:=@EXEEXT@
+BAK:=~
+CC:=@CXX@
+COPT:=@CPPFLAGS@ @COPT@ @DEFS@ -I @TOPDIR@include
+LOPT:=-lstdc++
+DELETE:=@cmd_rm@
+LIST:=@cmd_ls@
+
+INCDIR=include/
+LIBDIR=libs/
+LIBOUT=@PACKAGE_TARNAME@
+

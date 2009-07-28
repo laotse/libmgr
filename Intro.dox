@@ -1,0 +1,154 @@
+/*!
+\page main The MGRQt Library
+
+This is the documentation of the MGRQt libarary
+
+\version  $Id: Intro.dox,v 1.4 2008-05-15 20:58:24 mgr Exp $
+\author Dr. Lars Hanke
+\date 2005-2007
+
+\section history Historical
+
+The library was started for a specific project using the Qt GUI
+framework. In fact it was my first project in C++, which was
+considerably more complex than the classical "Hello World"
+application. Being a programmer for many years and a containment
+fanatic I was eager to start through on the job. 
+
+During the work I learned a couple of lessons that C++ is not some
+enhanced C, but a different language by accident using some of the
+same control structs. Whereas I am now familiar with the language, and
+as it seems to more detail than most, I am still not too familiar with
+the libc++. However, I learned to love the STL. I'll move the
+references to \<*.h\> to \<*\> one day as I find the time and exactly
+know, what I'm doing. 
+
+Beyond that I got to know the standard programming style used in C++
+and I learned to hate it. By now I know why systems are unstable
+today. It's not a bug in C++ itself and it's not a bug in the
+programming style taught with C++. It's the luring of the style that
+the compiler and some exception catch will take care of whatever may
+go wrong, which makes programmers neglecting. C++ has some nice
+features to support such care taking, but at the end of the day the
+programmer must use these. Using these features requires a structured
+approach and a clear error handling policy. Most of the people I have
+talked to have no idea what a policy might be and believe that
+structure is an automagical feature of OOP. 
+
+Well, it's not! And therefore some of the programming style resembles
+good old C style -  actually more good and mature than outdated. That
+it's old-fashioned is something I can live with. 
+
+I'm not too happy with some parts, where looking back I see some of
+the blood shed  learning the lessons of C++. It may be that there will
+be some re-implementation of core classes in the future. See
+e.g. XTree and TTree. But while XTree is a well running working horse,
+TTree will have to measure against its benchmarks first and against it
+somewhat lesser beauty second. 
+
+\section coding Coding Standards
+
+Interestingly, when searching for a quite different topic, I found the 
+<a href="http://www.vterrain.org/Implementation/effective.html">discussion on 
+C++ coding styles</a>, which I share in large parts. So here are my
+dos and don'ts.
+\li The target of the project is POSIX. So be compatible with POSIX, and 
+do not bother with wiered constructs for compatibility with other OS. It is
+however supposed to run on cygwin.
+\li Document for Doxygen. Document everything at least briefly. When
+in the slightest doubt, document more. Ten years down the line
+somebody else should be able to understand the code.
+\li For each module provide test cases and debugging modes.
+\li For each class define CTOR, copy CTOR and assignment operator, or
+put a comment line, why you don't. This is just to assure, you thought
+of these elements. If you want to avoid any of these, declare them private.
+\li Try to create non-virtual classes at least for simple tasks. This
+does object the interface implementation paradigma, but is does not
+make sense to walk through a couple of vtables to execute a one-liner,
+which would otherwise be inlined. If a member is virtual, comment why.
+\li Use \<cstdio\> instead of \<fstream\>. The latter is bulky, slow, and
+I cannot see any real advantage. The library will contain localization
+abstraction in future, without using this dinosaur.
+\li As I learned, malloc() is usually faster than new for uninitilized
+memory. At least  it is much clearer defined in what it does and it
+does not throw(). As a general rule, do not bother with nifty C++
+replacements for standard ANSI C features. More general solutions
+always have more overhead. 
+\li Adhere to the \ref policy "error handling policy"
+
+
+\section policy Error Handling Policy
+
+The policy is simple. Report the error in as much detail as
+possible. If at all sensible, all methods return an error code. Force
+each instance to check this error code and care for it, or at least
+cleanly abort and report the error to the caller. mgrError.h defines
+zillions of error codes, which vastly cut down debugging time. 
+
+Do not throw! Throwing is a nice idea, but you gain nothing. A
+function is expected to do something, which means that you have to try
+{ } catch() every second code line, or have to implement good models
+to bring you program back on track following some vague failure
+condition. In the end, your favorite Text-Processor crashes during
+automatic save and loses the last 4 hours of work. This is not the way
+I do programming. 
+
+If you have to throw, this is in CTOR, or you catch your throws
+yourself. Never rely on the client to catch. If you have to throw, use
+mgrException. Throwing is critical and you should see where your
+program crashed to find alternative error handling. mgrException even
+provides printf() style messages to check the internal states, 
+which led to the error.
+
+Any members should follow one of the following templates:
+\li m_error_t memberFunction( arguments ) throw()
+\li Construstor( arguments ) throw( mgrException )
+\li type *pseudoCTOR( arguments, m_error_t& ) throw()
+\li type *pseudoCTOR( arguments, m_error_t* ) throw()
+
+Passing a pointer to the return value allows to shortcut error codes,
+which may be handy for internals sometimes. But this is actually not
+the way it should be. 
+
+Actually, the library does not yet follow this policy completely. In particular
+the throw policy is not yet established. Be aware that the interface will
+evolve towards this goal.
+
+\section whatfor Intented applications
+
+This library is intended for data acquisition and data processing
+applications.  
+
+Such applications have some properties, which make them different from
+most others: 
+\li Large data sets must be processed quickly and in general exported
+and imported into strange formats
+\li Programs definitely need a batch mode, at least a full-featured
+command line interface 
+\li Applications evolve over many years, a lot of scientists grab the
+code and try their latest ideas. These ideas are unlikely to be
+removed. 
+\li Programm tweaking on demand rarely produces any
+documentation. Most programs lose their value, because no-one knows
+how to use them. 
+
+What does this library do to meet this goals? Here's a list:
+\li The Configuration class provides a command line parser and
+requires the programmer to specifiy at least a minimal documentation
+with every option added to the code. Usage and help information is
+automatically generated. 
+\li Doxygen shall be used to at least document the parameters and the general
+idea of a function.
+\li The code provides detailed error reporting and robustness. Most
+interfaces implement parameter white-listing. Error handling is
+defense in depth - keep it that way. 
+\li What is saved by omitting a couple of integer checks, is often
+bought by innumerable copy operations for large data
+regions. Temp=DataSet just reads quicker than
+memcpy(malloc(sizeof(DataSet)),DataSet,sizeof(DataSet)) and beyond
+that does not carry the indication that it might fail. _wtBuffer is a
+convenient working horse reducing copies of large data to a
+minimum. The price is that you must know in advance, whether you'll
+need a writePtr() or a readPtr(). 
+
+*/

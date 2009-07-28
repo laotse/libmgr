@@ -1,0 +1,223 @@
+#
+# Top level Makefie
+#
+# $Id: Makefile.in,v 1.19 2008-05-15 20:58:24 mgr Exp $
+#
+# see rule below for creation of this file
+#
+
+TOPDIR=@TOPDIR@
+include @CONFDIR@Makefile.machine
+
+DOCDIR=$(TOPDIR)docs/
+
+TAGFILE=TAGS
+ARCFILE=@PACKAGE_TARNAME@-@PACKAGE_VERSION@
+DOCFILE=Doxygen
+ADDDOC=Intro.dox
+
+LIBRARIES=app util tlv xdr math net xml sol crypto
+SRCDIRS=$(LIBRARIES) templates
+
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+datadir=@datadir@
+
+INSTINC=@includedir@/$(LIBOUT)
+INSTDOC=@datarootdir@/doc/$(LIBOUT)
+
+.PHONY: all
+all:	include libs
+
+$(TOPDIR)$(LIBDIR)$(LIBOUT).a: all
+
+.PHONY: install
+install: $(TOPDIR)$(LIBDIR)$(LIBOUT).a
+	@if test -d $(INSTINC); then \
+	  @cmd_rmtree@ $(INSTINC); \
+	fi
+	@if test ! -d @libdir@; then \
+	  @INSTALL@ -m 755 -d @libdir@; \
+	fi
+	@INSTALL@ -m 755 -d $(INSTINC)
+	@INSTALL@ -m 644 -t @libdir@ $(TOPDIR)$(LIBDIR)$(LIBOUT).a
+	@for d in $(SRCDIRS); do \
+	 make -C $$d INSTINC='$(INSTINC)' install; \
+	done
+
+.PHONY: uninstall
+uninstall:
+	@if test -d @includedir@/$(LIBOUT); then \
+	  @cmd_rmtree@ @includedir@/$(LIBOUT); \
+	fi
+	@cmd_rm@ @libdir@/$(LIBOUT).a
+
+.PHONY: libs
+libs:
+	@if test ! -d $(TOPDIR)$(LIBDIR); then \
+	 @cmd_mkdir@ $(TOPDIR)$(LIBDIR); \
+	fi
+	@for d in $(SRCDIRS); do \
+	 make -C $$d; \
+	done
+	@cmd_rmtree@ $(TOPDIR)$(LIBDIR).obj
+	@cmd_mkdir@ $(TOPDIR)$(LIBDIR).obj
+	cd $(TOPDIR)$(LIBDIR).obj;\
+	for d in $(LIBRARIES); do \
+	 ar x ../lib$$d.a; \
+	done 
+	@cmd_rm@ $(TOPDIR)$(LIBDIR)$(LIBOUT).a
+	ar rcs $(TOPDIR)$(LIBDIR)$(LIBOUT).a $(TOPDIR)$(LIBDIR).obj/*
+	@RANLIB@ $(TOPDIR)$(LIBDIR)$(LIBOUT).a
+
+.PHONY: include
+include: xdr/xdr.h
+	@if test ! -d $(TOPDIR)$(INCDIR); then \
+	 @cmd_mkdir@ $(TOPDIR)$(INCDIR); \
+	fi
+	@for d in $(SRCDIRS); do \
+	 make -C $$d include; \
+	done
+
+xdr/xdr.h: xdr/xdr.h.in config/config.h
+	@PERL@ config/xdr-machine.pl config/config.h < xdr/xdr.h.in > xdr/xdr.h
+
+.PHONY: test
+test:	include
+	@for d in $(SRCDIRS); do \
+	 make -C $$d test; \
+	done
+
+.PHONY: odg
+odg:
+	@for d in $(SRCDIRS); do \
+	 make -C $$d debug_objects; \
+	done	
+
+.PHONY: doc
+doc:	$(DOCDIR)latex/refman.tex
+
+$(DOCDIR)latex/refman.tex: include
+	@cmd_rm@ $(TOPDIR)$(DOCFILE).lst $(TOPDIR)$(DOCFILE).xcl
+	@for d in $(SRCDIRS); do \
+	 make -C $$d doclist LISTFILE=$(DOCFILE).lst PREFIX=$$d; \
+	done
+	@for d in $(ADDDOC); do \
+	 echo $$d >> $(TOPDIR)$(DOCFILE).lst; \
+	done
+	@PERL@ config/Doxygen.pl `pwd` $(TOPDIR)$(DOCFILE).lst \
+	             $(DOCDIR) $(TOPDIR)$(DOCFILE).xcl \
+                     < Doxyfile > Doxyfile.config
+	@cmd_rmtree@ $(DOCDIR)
+	@INSTALL@ -d $(DOCDIR)
+	doxygen Doxyfile.config
+
+.PHONY: printdoc
+printdoc: $(DOCDIR)latex/$(LIBOUT).ps.gz
+$(DOCDIR)latex/$(LIBOUT).ps.gz: $(DOCDIR)latex/refman.tex
+	(cd $(DOCDIR)latex; \
+	 pdflatex refman.tex; \
+	 pdflatex refman.tex; \
+	 latex refman.tex; \
+	 latex refman.tex; \
+	 mv refman.pdf $(LIBOUT).pdf; \
+	 dvips -D 600 -t a4 -o $(LIBOUT).ps refman.dvi; \
+	 gzip -9 $(LIBOUT).ps)
+
+.PHONY: installdoc
+installdoc: printdoc
+	@INSTALL@ -m 755 $(INSTDOC)/html
+	@INSTALL@ -m 644 $(DOCDIR)html/* $(INSTDOC)/html
+	@INSTALL@ -m 644 $(DOCDIR)latex/$(LIBOUT).ps.gz $(INSTDOC) 
+	@INSTALL@ -m 644 $(DOCDIR)latex/$(LIBOUT).pdf $(INSTDOC) 
+
+.PHONY: tags
+tags:
+	@cmd_rm@ $(TOPDIR)$(TAGFILE).lst
+	@for d in $(SRCDIRS); do \
+	 make -C $$d tags LISTFILE=$(TAGFILE).lst PREFIX=$$d; \
+	done
+	ctags -ef $(TOPDIR)$(TAGFILE) -L $(TOPDIR)$(TAGFILE).lst
+	@echo "Use M-. to jump to a tag in emacs"
+	@echo "Use M-* to jump back from the last tag visited"
+
+.PHONY: tarball
+tarball: snapshot
+	if test -d $(TOPDIR)$(ARCFILE); then \
+	  @cmd_rmtree@ $(TOPDIR)$(ARCFILE); \
+	fi
+	@INSTALL@ -m 755 -d $(TOPDIR)$(ARCFILE)
+	(cd $(TOPDIR)$(ARCFILE); tar -xjf $(TOPDIR)$(ARCFILE).tar.bz2)
+	tar -czf $(TOPDIR)$(ARCFILE).tar.gz $(ARCFILE)
+	@cmd_rmtree@ $(TOPDIR)$(ARCFILE)
+
+.PHONY: snapshot
+snapshot:
+	@cmd_rm@ $(TOPDIR)$(ARCFILE).lst
+	@for d in $(SRCDIRS); do \
+	 make -C $$d snapshot LISTFILE=$(ARCFILE).lst PREFIX=$$d; \
+	done
+	echo Makefile.in >> $(TOPDIR)$(ARCFILE).lst
+	echo config/config.h.in >> $(TOPDIR)$(ARCFILE).lst
+	echo configure.ac >> $(TOPDIR)$(ARCFILE).lst
+	echo configure >> $(TOPDIR)$(ARCFILE).lst
+	echo config/install-sh >> $(TOPDIR)$(ARCFILE).lst
+	echo config/config.sub >> $(TOPDIR)$(ARCFILE).lst
+	echo config/config.guess >> $(TOPDIR)$(ARCFILE).lst
+	echo config/Makefile.machine.in >> $(TOPDIR)$(ARCFILE).lst
+	echo config/xdr-machine.pl >> $(TOPDIR)$(ARCFILE).lst
+	echo aclocal.m4 >> $(TOPDIR)$(ARCFILE).lst
+	echo version.sh >> $(TOPDIR)$(ARCFILE).lst
+	echo Doxyfile >> $(TOPDIR)$(ARCFILE).lst
+	echo config/Doxygen.pl >> $(TOPDIR)$(ARCFILE).lst
+	@for d in $(ADDDOC); do \
+	 echo $$d >> $(TOPDIR)$(ARCFILE).lst; \
+	done
+	tar -cvjf $(TOPDIR)$(ARCFILE).tar.bz2 -T $(TOPDIR)$(ARCFILE).lst
+
+.PHONY: dist
+dist:
+	cvs export -d $(TOPDIR).tmp -D `date +%d-%m-%y` -f qtlib
+	(cd $(TOPDIR).tmp; tar -cvjf ../qtlib.tar.bz2 *)
+	@cmd_rmtree@ $(TOPDIR).tmp
+
+.PHONY: clean
+clean:
+	for d in $(SRCDIRS); do \
+	 make -C $$d clean; \
+	done
+	@cmd_rm@ $(DOCDIR)latex/*.log
+	@cmd_rm@ $(DOCDIR)latex/*.out
+	@cmd_rm@ $(DOCDIR)latex/*.aux
+	@cmd_rm@ $(DOCDIR)latex/*.toc
+
+.PHONY: veryclean
+veryclean:
+	for d in $(SRCDIRS); do \
+	 make -C $$d veryclean; \
+	done
+	@cmd_rmtree@ $(TOPDIR)$(INCDIR)
+	@cmd_rmtree@ $(TOPDIR)$(LIBDIR)
+	@cmd_rm@ *$(EXE).stackdump
+	@cmd_rm@ *.a
+	@cmd_rm@ *.log
+	@cmd_rm@ $(TOPDIR)$(ARCFILE).lst
+	@cmd_rm@ $(TOPDIR)$(DOCFILE).lst $(TOPDIR)$(DOCFILE).xcl
+	@cmd_rm@ $(TOPDIR)$(TAGFILE).lst
+	@cmd_rm@ $(DOCDIR)latex/*.dvi
+
+.PHONY: distclean
+distclean:	veryclean
+	for d in $(SRCDIRS); do \
+	 @cmd_rm@ $$d/Makefile; \
+	 @cmd_rm@ $$d/*$(BAK); \
+	done
+	@cmd_rm@ Makefile
+	@cmd_rm@ config/Makefile.machine
+	@cmd_rm@ config/config.h
+	@cmd_rm@ xdr/xdr.h
+	@cmd_rm@ config.status
+	@cmd_rm@ Doxyfile.config
+	@cmd_rm@ $(TOPDIR)$(TAGFILE)
+	@cmd_rm@ *$(BAK)
+	@cmd_rmtree@ $(DOCDIR)

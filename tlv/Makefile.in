@@ -1,0 +1,89 @@
+#
+# Makefile for utility classes
+#
+# $Id: Makefile.in,v 1.7 2007-06-01 21:25:21 mgr Exp $
+#
+# see rule below for creation of this file
+
+TOPDIR := @TOPDIR@
+
+include @CONFDIR@Makefile.machine
+
+LIBINC := $(TOPDIR)$(INCDIR)
+
+
+LIBOBJ=BerTree.o
+TESTS=test-BerTree$(EXE)
+#TESTS=
+INCLUDES=BerTree.h BerTree-meta.h
+# BerTree-meta.h is included in BerTree.h and produces double docs
+NODOC=BerTree-meta.h
+
+$(TOPDIR)$(LIBDIR)libtlv.a: $(LIBOBJ)
+	ar rcs $@ $^
+	@RANLIB@ $@
+
+all: $(LIBOBJ)
+
+include:
+	@INSTALL@ -p -m 644 $(INCLUDES) $(LIBINC)
+
+install:
+	@INSTALL@ -p -m 644 $(INCLUDES) $(INSTINC)
+
+#test:
+#	@echo "No tests for module: TLV"
+
+test: $(TESTS)
+	#$(DELETE) *.o
+	@echo "Created module tests:"
+	@$(LIST) test-*$(EXE)
+
+tags:
+	find . -maxdepth 1 -type f -regex '.*/[^/]*\.\(c\|h\|cpp\|tag\)$$' \
+         | sed -e "s+^\./+$(PREFIX)/+" \
+	 >> $(TOPDIR)$(LISTFILE)
+
+snapshot:
+	find . -maxdepth 1 -type f -regex '.*/[^/]*\.\(c\|h\|cpp\|tag\)$$' \
+         | sed -e "s+^\./+$(PREFIX)/+" \
+	 >> $(TOPDIR)$(LISTFILE)
+	echo $(PREFIX)/Makefile.in >> $(TOPDIR)$(LISTFILE)
+
+doclist:
+	@for f in $(INCLUDES); do \
+	  echo $(INCDIR)$$f >> $(TOPDIR)$(LISTFILE); \
+	done
+	@for f in $(patsubst %.o,%.cpp,$(LIBOBJ)); do \
+	  echo $(PREFIX)/$$f >> $(TOPDIR)$(LISTFILE); \
+	done
+	@for f in $(NODOC); do \
+	  echo $(INCDIR)$$f >> $(patsubst %.lst,%.xcl,$(TOPDIR)$(LISTFILE)); \
+	done
+
+SRC_BERTREE=BerTree.cpp BerTree.h BerTree-meta.h
+
+test-BerTree$(EXE): $(SRC_BERTREE) $(TOPDIR)$(LIBDIR)libutil.a
+	$(CC) $(COPT) -c -ggdb -ohtree.dbg.o $(TOPDIR)util/htree.cpp
+	$(CC) -DTEST $(COPT) -ggdb -o$@ $< $(LOPT) htree.dbg.o $(TOPDIR)$(LIBDIR)libutil.a
+
+BerTree.o: $(SRC_BERTREE)
+
+.cpp.o:
+	@if test ! -e $*.tag; then \
+	 $(TOPDIR)version.sh $*.tag create; \
+	else \
+	 $(TOPDIR)version.sh $*.tag build; \
+	fi
+	$(CC) -c $(COPT) -DNO_DEBUG $<
+
+clean:
+	$(DELETE) *.o
+	$(DELETE) test-*$(EXE)
+	$(DELETE) *$(EXE).stackdump
+
+veryclean:
+	$(DELETE) *.o
+	$(DELETE) -f *$(BAK)
+	$(DELETE) *$(EXE).stackdump
+	$(DELETE) *.a

@@ -1,0 +1,126 @@
+#
+# Makefile for utility classes
+#
+# $Id: Makefile.in,v 1.7 2007-06-01 21:25:21 mgr Exp $
+#
+# see rule below for creation of this file
+
+TOPDIR := @TOPDIR@
+
+include @CONFDIR@Makefile.machine
+
+LIBINC := $(TOPDIR)$(INCDIR)
+
+TOPT = -DTEST -ggdb -O0
+
+LIBOBJ=htree.o wtBuffer.o StreamDump.o HexDump.o mgrError.o
+TESTS=test-htree$(EXE) test-wtBuffer$(EXE)
+TESTS+=test-HexDump$(EXE) test-StreamDump$(EXE) test-mgrError$(EXE)
+TESTS+=test-ttree$(EXE)
+INCLUDES=htree.h mgrDefines.h mgrError.h mgrDebug.h
+INCLUDES+=wtBuffer.h StreamDump.h wtBufferDump.h HexDump.h mgrMeta.h
+INCLUDES+=StringBuffer.h ttree.h MemoryRegion.h
+
+$(TOPDIR)$(LIBDIR)libutil.a: $(LIBOBJ)
+	ar rcs $@ $^
+	@RANLIB@ $@
+
+all: $(LIBOBJ)
+
+include:
+	@INSTALL@ -p -m 644 $(INCLUDES) $(LIBINC)
+
+install:
+	@INSTALL@ -p -m 644 $(INCLUDES) $(INSTINC)
+
+test: $(TESTS)
+	#$(DELETE) *.o
+	@echo "Created module tests:"
+	@$(LIST) test-*$(EXE)
+
+tags:
+	find . -maxdepth 1 -type f -regex '.*/[^/]*\.\(c\|h\|cpp\|tag\)$$' \
+         | sed -e "s+^\./+$(PREFIX)/+" \
+	 >> $(TOPDIR)$(LISTFILE)
+
+snapshot:
+	find . -maxdepth 1 -type f -regex '.*/[^/]*\.\(c\|h\|cpp\|tag\)$$' \
+         | sed -e "s+^\./+$(PREFIX)/+" \
+	 >> $(TOPDIR)$(LISTFILE)
+	echo $(PREFIX)/Makefile.in >> $(TOPDIR)$(LISTFILE)
+
+doclist:
+	@for f in $(INCLUDES); do \
+	  echo $(INCDIR)$$f >> $(TOPDIR)$(LISTFILE); \
+	done
+	@for f in $(patsubst %.o,%.cpp,$(LIBOBJ)); do \
+	  echo $(PREFIX)/$$f >> $(TOPDIR)$(LISTFILE); \
+	done
+
+test-lists$(EXE): lists.cpp lists.h
+	$(CC) $(TOPT) $(COPT) -o$@ $< $(LOPT)
+
+test-buffer$(EXE): buffer.cpp buffer.h
+	$(CC) $(TOPT) $(COPT) -o$@ $< $(LOPT)
+
+test-bintree$(EXE): bintree.cpp bintree.h
+	$(CC) $(TOPT) $(COPT) -o$@ $< $(LOPT)
+
+test-htree$(EXE): htree.cpp htree.h
+	$(CC) $(TOPT) $(COPT) -o$@ $< $(LOPT)
+
+test-ttree$(EXE): ttree.cpp ttree.h mgrError.odg
+	$(CC) $(COPT) $(TOPT) -o$@ $< $(LOPT) mgrError.odg
+
+test-wtBuffer$(EXE): wtBuffer.cpp wtBuffer.h
+	$(CC) $(TOPT) $(COPT) -o$@ $< $(LOPT)
+
+test-StreamDump$(EXE): StreamDump.cpp StreamDump.h
+	$(CC) $(TOPT) $(COPT) -o$@ $< $(LOPT)
+
+test-HexDump$(EXE): HexDump.cpp HexDump.h StreamDump.cpp StreamDump.h
+	$(CC) -c $(COPT) -ggdb -o StreamDump.dbg.o StreamDump.cpp
+	$(CC) $(TOPT) $(COPT) -o$@ $< $(LOPT) StreamDump.dbg.o $(TOPDIR)$(LIBDIR)libutil.a
+
+test-mgrError$(EXE): mgrError.cpp mgrError.h
+	$(CC) $(TOPT) $(COPT) -o$@ $< $(LOPT)
+
+
+htree.o: htree.cpp htree.h
+lists.o: lists.cpp lists.h
+buffer.o: buffer.cpp buffer.h
+bintree.o: bintree.cpp bintree.h
+wtBuffer.o: wtBuffer.cpp wtBuffer.h
+StreamDump.o: StreamDump.cpp StreamDump.h
+HexDump.o: HexDump.cpp HexDump.h
+mgrError.o: mgrError.cpp mgrError.h
+
+.cpp.o:
+	@if test ! -e $*.tag; then \
+	 $(TOPDIR)version.sh $*.tag create; \
+	else \
+	 $(TOPDIR)version.sh $*.tag build; \
+	fi
+	$(CC) -c $(COPT) -DNO_DEBUG $<
+
+# external debugging objects
+.PHONY: debug_objects
+
+debug_objects: wtBuffer.odg mgrError.odg
+
+wtBuffer.odg: wtBuffer.cpp wtBuffer.h
+mgrError.odg: mgrError.cpp mgrError.h
+
+%.odg:	%.cpp
+	$(CC) -c $(COPT) -ggdb -o$*.odg $*.cpp
+
+clean:
+	$(DELETE) *.o *.odg *.odx
+	$(DELETE) test-*$(EXE)
+	$(DELETE) *$(EXE).stackdump
+
+veryclean:
+	$(DELETE) *.o
+	$(DELETE) -f *$(BAK)
+	$(DELETE) *$(EXE).stackdump
+	$(DELETE) *.a

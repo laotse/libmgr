@@ -1,0 +1,131 @@
+#
+# Makefile for utility classes
+#
+# $Id: Makefile.in,v 1.9 2007-06-25 11:07:16 mgr Exp $
+#
+# see rule below for creation of this file
+
+TOPDIR := @TOPDIR@
+
+include @CONFDIR@Makefile.machine
+
+LIBINC := $(TOPDIR)$(INCDIR)
+
+MYLIB := $(TOPDIR)$(LIBDIR)@PACKAGE_TARNAME@.a
+
+LIBOBJ=xdrOrder.o TaggedDataFile.o asn1IO.o TaggedDataArrays.o
+TESTS=test-xdrOrder$(EXE) test-TaggedDataFile$(EXE) test-asn1IO$(EXE)
+TESTS += test-TaggedDataArrays$(EXE)
+INCLUDES=xdrOrder.h TaggedDataFile.h asn1IO.h TaggedDataArrays.h xdrCall.h
+MINCS = xdr.h
+
+#LDBGOPT=-ggdb -DEXT_DEBUG -DNO_DEBUG
+LDBGOPT=-ggdb -DEXT_DEBUG
+
+$(TOPDIR)$(LIBDIR)libxdr.a: $(LIBOBJ)
+	ar rcs $@ $^
+	@RANLIB@ $@
+
+all: $(LIBOBJ)
+
+include:
+	@INSTALL@ -p -m 644 $(INCLUDES) $(LIBINC)
+	if test ! -d $(LIBINC)machine; then @cmd_mkdir@ $(LIBINC)machine; fi
+	@INSTALL@ -p -m 644 $(MINCS) $(LIBINC)machine
+
+install:
+	@INSTALL@ -p -m 644 $(INCLUDES) $(INSTINC)
+	if test ! -d $(INSTINC)/machine; then @INSTALL@ -m 755 -d $(INSTINC)/machine; fi
+	@INSTALL@ -p -m 644 $(MINCS) $(INSTINC)/machine
+
+#test:
+#	@echo "No tests for module: TLV"
+
+test: $(TESTS)
+	@echo "Created module tests:"
+	@$(LIST) test-*$(EXE)
+
+tags:
+	find . -maxdepth 1 -type f -regex '.*/[^/]*\.\(c\|h\|cpp\|tag\)$$' \
+         | sed -e "s+^\./+$(PREFIX)/+" \
+	 >> $(TOPDIR)$(LISTFILE)
+
+snapshot:
+	find . -maxdepth 1 -type f -regex '.*/[^/]*\.\(c\|cpp\|tag\)$$' \
+         | sed -e "s+^\./+$(PREFIX)/+" \
+	 >> $(TOPDIR)$(LISTFILE)
+	@for f in $(INCLUDES); do \
+	  echo $(PREFIX)/$$f >> $(TOPDIR)$(LISTFILE); \
+	done	
+	echo $(PREFIX)/xdr.h.in >> $(TOPDIR)$(LISTFILE)
+	echo $(PREFIX)/Makefile.in >> $(TOPDIR)$(LISTFILE)
+
+doclist:
+	@for f in $(INCLUDES); do \
+	  echo $(INCDIR)$$f >> $(TOPDIR)$(LISTFILE); \
+	done
+	@for f in $(patsubst %.o,%.cpp,$(LIBOBJ)); do \
+	  echo $(PREFIX)/$$f >> $(TOPDIR)$(LISTFILE); \
+	done
+
+SRC_XDRORDER=xdrOrder.cpp xdrOrder.h $(TOPDIR)$(INCDIR)machine/xdr.h
+SRC_ASN1IO=asn1IO.cpp asn1IO.h ../tlv/BerTree.h xdrOrder.h
+SRC_TAGGEDDATAFILE=TaggedDataFile.cpp TaggedDataFile.h xdrOrder.h 
+SRC_TAGGEDDATAFILE += $(TOPDIR)$(INCDIR)machine/xdr.h
+SRC_TAGGEDDATAARRAYS=TaggedDataArrays.cpp TaggedDataArrays.h 
+SRC_TAGGEDDATAARRAYS += TaggedDataFile.h xdrOrder.h 
+SRC_TAGGEDDATAARRAYS += $(TOPDIR)$(INCDIR)machine/xdr.h
+
+wtBuffer.dbg.o: ../util/wtBuffer.cpp ../util/wtBuffer.h
+	$(CC) $(COPT) -c $(LDBGOPT) -o $@ $<
+
+htree.dbg.o: ../util/htree.cpp ../util/htree.h
+	$(CC) $(COPT) -c $(LDBGOPT) -o $@ $<
+
+BerTree.dbg.o: ../tlv/BerTree.cpp ../tlv/BerTree.h
+	$(CC) $(COPT) -c $(LDBGOPT) -o $@ $<
+
+xdrOrder.dbg.o: $(SRC_XDRORDER)
+	$(CC) $(COPT) -c $(LDBGOPT) -o $@ $<
+
+asn1IO.dbg.o: $(SRC_ASN1IO)
+	$(CC) $(COPT) -c $(LDBGOPT) -o $@ $<
+
+test-xdrOrder$(EXE): $(SRC_XDRORDER) $(TOPDIR)$(LIBDIR)libutil.a
+	$(CC) -DTEST $(COPT) -ggdb -o$@ $< $(LOPT)
+
+DBG_MOD_TAGGEDDATAFILE = htree.dbg.o BerTree.dbg.o asn1IO.dbg.o
+
+test-TaggedDataFile$(EXE): $(SRC_TAGGEDDATAFILE) $(MYLIB) $(DBG_MOD_TAGGEDDATAFILE)
+	$(CC) -DTEST $(COPT) -ggdb -o$@ $< $(LOPT) $(DBG_MOD_TAGGEDDATAFILE) $(MYLIB)
+
+test-asn1IO$(EXE): $(SRC_ASN1IO) $(MYLIB) test-TaggedDataFile$(EXE)
+	$(CC) -DTEST $(COPT) -ggdb -o$@ $< $(LOPT) htree.dbg.o BerTree.dbg.o $(MYLIB)
+
+DBG_MOD_TAGGEDDATAARRAYS = htree.dbg.o BerTree.dbg.o wtBuffer.dbg.o
+test-TaggedDataArrays$(EXE): $(SRC_TAGGEDDATAARRAYS) $(MYLIB) $(DBG_MOD_TAGGEDDATAARRAYS)
+	$(CC) -DTEST $(COPT) -ggdb -o$@ $< $(LOPT) $(DBG_MOD_TAGGEDDATAARRAYS) $(MYLIB)
+
+xdrOrder.o: $(SRC_XDRORDER)
+asn1IO.o: $(SRC_ASN1IO)
+TaggedDataFile.o: $(SRC_TAGGEDDATAFILE)
+TaggedDataArrays.o: $(SRC_TAGGEDDATAARRAYS)
+
+.cpp.o:
+	@if test ! -e $*.tag; then \
+	 $(TOPDIR)version.sh $*.tag create; \
+	else \
+	 $(TOPDIR)version.sh $*.tag build; \
+	fi
+	$(CC) -c $(COPT) -DNO_DEBUG $<
+
+clean:
+	$(DELETE) *.o
+	$(DELETE) test-*$(EXE)
+	$(DELETE) *$(EXE).stackdump
+
+veryclean:
+	$(DELETE) *.o
+	$(DELETE) -f *$(BAK)
+	$(DELETE) *$(EXE).stackdump
+	$(DELETE) *.a

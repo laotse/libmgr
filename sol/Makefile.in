@@ -1,0 +1,111 @@
+#
+# Makefile for application classes
+#
+# $Id: Makefile.in,v 1.7 2007-06-01 21:25:20 mgr Exp $
+#
+# see rule below for creation of this file
+
+
+TOPDIR := @TOPDIR@
+
+include @CONFDIR@Makefile.machine
+
+LIBINC := $(TOPDIR)$(INCDIR)
+
+MYLIB := $(TOPDIR)$(LIBDIR)@PACKAGE_TARNAME@.a
+
+TOPT = -O0 -DTEST -ggdb
+
+LIBPART=sol
+
+LIBOBJ=dlist.o 
+TESTS=test-dlist$(EXE) test-HTree$(EXE)
+INCLUDES=Concepts.h dlist.h dlist-operations.h htree-sol.h
+NODOC=dlist-operations.h
+
+$(TOPDIR)$(LIBDIR)lib$(LIBPART).a: $(LIBOBJ)
+	ar rcs $@ $^
+	@RANLIB@ $@
+
+include:
+	@INSTALL@ -p -m 644 $(INCLUDES) $(LIBINC)
+
+install:
+	@INSTALL@ -p -m 644 $(INCLUDES) $(INSTINC)
+
+tags:
+	find . -maxdepth 1 -type f -regex '.*/[^/]*\.\(c\|h\|cpp\|tag\)$$' \
+         | sed -e "s+^\./+$(PREFIX)/+" \
+	 >> $(TOPDIR)$(LISTFILE)
+
+snapshot:
+	find . -maxdepth 1 -type f -regex '.*/[^/]*\.\(c\|h\|cpp\|tag\)$$' \
+         | sed -e "s+^\./+$(PREFIX)/+" \
+	 >> $(TOPDIR)$(LISTFILE)
+	echo $(PREFIX)/Makefile.in >> $(TOPDIR)$(LISTFILE)
+
+doclist:
+	@for f in $(INCLUDES); do \
+	  echo $(INCDIR)$$f >> $(TOPDIR)$(LISTFILE); \
+	done
+	@for f in $(patsubst %.o,%.cpp,$(LIBOBJ)); do \
+	  echo $(PREFIX)/$$f >> $(TOPDIR)$(LISTFILE); \
+	done
+	@for f in $(NODOC); do \
+	  echo $(INCDIR)$$f >> $(patsubst %.lst,%.xcl,$(TOPDIR)$(LISTFILE)); \
+	done
+
+
+.PHONY: test
+test: $(TESTS)
+	@if [[ -z "$(TESTS)" ]]; then \
+	 echo "No tests yet for $(LIBPART) classes"; \
+	else \
+	 echo "Created module tests:"; \
+	 $(LIST) test-*$(EXE); \
+	fi
+
+SRC_DLIST = dlist.cpp dlist.h Concepts.h dlist-operations.h
+SRC_HTREE = htree-sol.cpp htree-sol.h
+
+#../util/htree.odg: ../util/htree.cpp ../util/htree.h
+test-dlist$(EXE): dlist.odx
+	$(CC) -o$@ $^ $(LOPT) $(MYLIB)
+
+test-HTree$(EXE): htree-sol.odx dlist.odg
+	$(CC) -o$@ $^ $(LOPT) $(MYLIB)
+
+#../util/mgrError.odg: ../util/mgrError.cpp ../util/mgrError.h 
+#test-XMLParser$(EXE): XMLParser.odx XMLTree.odg ../util/mgrError.odg ../util/htree.odg
+#	$(CC) -o$@ $^ $(LOPT) -lexpat $(MYLIB)
+
+dlist.tag: $(SRC_DLIST)
+htree-sol.tag: $(SRC_HTREE)
+#XMLParser.tag: $(SRC_XMLPARSER)
+
+%.tag:
+	@if test ! -e $*.tag; then \
+	 $(TOPDIR)version.sh $*.tag create; \
+	else \
+	 $(TOPDIR)version.sh $*.tag build; \
+	fi
+
+%.odg:	%.tag
+	$(CC) -c $(COPT) -ggdb -o$*.odg $*.cpp
+
+%.odx:	%.tag
+	$(CC) -c $(COPT) $(TOPT) -O0 -o$*.odx $*.cpp
+
+%.o:	%.tag
+	$(CC) -c $(COPT) -DNO_DEBUG $*.cpp
+
+.PHONY: clean veryclean
+clean:
+	$(DELETE) *.o *.odg *.odx
+	$(DELETE) test-*$(EXE)
+	$(DELETE) *$(EXE).stackdump
+
+veryclean:	clean
+	$(DELETE) -f *$(BAK)
+	$(DELETE) *.a
+

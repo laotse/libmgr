@@ -1,0 +1,90 @@
+#
+# Makefile for application classes
+#
+# $Id: Makefile.in,v 1.7 2007-06-01 21:25:20 mgr Exp $
+#
+# see rule below for creation of this file
+
+
+TOPDIR := @TOPDIR@
+
+include @CONFDIR@Makefile.machine
+
+LIBINC := $(TOPDIR)$(INCDIR)
+
+MYLIB := $(TOPDIR)$(LIBDIR)@PACKAGE_TARNAME@.a
+
+TOPT = -DTEST -ggdb -O0
+
+LIBOBJ=options.o ConsoleFormatter.o
+TESTS=test-options$(EXE) test-ConsoleFormatter$(EXE)
+INCLUDES=options.h ConsoleFormatter.h
+
+$(TOPDIR)$(LIBDIR)libapp.a: $(LIBOBJ)
+	ar rcs $@ $^
+	@RANLIB@ $@
+
+include:
+	@INSTALL@ -p -m 644 $(INCLUDES) $(LIBINC)
+
+install:
+	@INSTALL@ -p -m 644 $(INCLUDES) $(INSTINC)
+
+tags:
+	find . -maxdepth 1 -type f -regex '.*/[^/]*\.\(c\|h\|cpp\|tag\)$$' \
+         | sed -e "s+^\./+$(PREFIX)/+" \
+	 >> $(TOPDIR)$(LISTFILE)
+
+snapshot:
+	find . -maxdepth 1 -type f -regex '.*/[^/]*\.\(c\|h\|cpp\|tag\)$$' \
+         | sed -e "s+^\./+$(PREFIX)/+" \
+	 >> $(TOPDIR)$(LISTFILE)
+	echo $(PREFIX)/Makefile.in >> $(TOPDIR)$(LISTFILE)
+
+doclist:
+	@for f in $(INCLUDES); do \
+	  echo $(INCDIR)$$f >> $(TOPDIR)$(LISTFILE); \
+	done
+	@for f in $(patsubst %.o,%.cpp,$(LIBOBJ)); do \
+	  echo $(PREFIX)/$$f >> $(TOPDIR)$(LISTFILE); \
+	done
+
+#test:
+#	@echo "No tests yet for application classes"
+
+test: $(TESTS)
+	@echo "Created module tests:"
+	@$(LIST) test-*$(EXE)
+
+SRC_OPTIONS = options.cpp options.h
+SRC_CFMT = ConsoleFormatter.cpp ConsoleFormatter.h
+
+test-options$(EXE): $(SRC_OPTIONS) $(MYLIB)
+	$(CC) $(COPT) $(TOPT) -o$@ $< $(LOPT) $(MYLIB)
+
+test-ConsoleFormatter$(EXE): $(SRC_CFMT) $(MYLIB)
+	$(CC) $(COPT) $(TOPT) -o$@ $< $(LOPT) $(MYLIB)
+
+opts.o: opts.cpp opts.h
+options.o: $(SRC_OPTIONS)
+ConsoleFormatter.o: $(SRC_CFMT)
+
+.cpp.o:
+	if test ! -e $*.tag; then \
+	 $(TOPDIR)version.sh $*.tag create; \
+	else \
+	 $(TOPDIR)version.sh $*.tag build; \
+	fi
+	$(CC) -c $(COPT) -DNO_DEBUG $<
+
+clean:
+	$(DELETE) *.o *.odg *.odx
+	$(DELETE) test-*$(EXE)
+	$(DELETE) *$(EXE).stackdump
+
+veryclean:
+	$(DELETE) *.o
+	$(DELETE) -f *$(BAK)
+	$(DELETE) *$(EXE).stackdump
+	$(DELETE) *.a
+

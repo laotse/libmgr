@@ -1,0 +1,89 @@
+#
+# Makefile for network support classes
+#
+# $Id: Makefile.in,v 1.2 2008-05-17 19:33:28 mgr Exp $
+#
+# see rule below for creation of this file
+
+TOPDIR := @TOPDIR@
+
+include @CONFDIR@Makefile.machine
+
+LIBINC := $(TOPDIR)$(INCDIR)
+
+MYLIB := $(TOPDIR)$(LIBDIR)@PACKAGE_TARNAME@.a -lssl
+
+TOPT = -DTEST -ggdb -O0 
+
+LIBOBJ=bigNum.o
+TESTS=test-bigNum$(EXE)
+INCLUDES=bigNum.h
+
+$(TOPDIR)$(LIBDIR)libcrypto.a: $(LIBOBJ)
+	ar rcs $@ $^
+	@RANLIB@ $@
+
+all: $(LIBOBJ)
+
+include:
+	@INSTALL@ -p -m 644 $(INCLUDES) $(LIBINC)
+
+install:
+	@INSTALL@ -p -m 644 $(INCLUDES) $(INSTINC)
+
+test: $(TESTS)
+	#$(DELETE) *.o
+	@echo "Created module tests:"
+	@$(LIST) test-*$(EXE)
+
+tags:
+	find . -maxdepth 1 -type f -regex '.*/[^/]*\.\(c\|h\|cpp\|tag\)$$' \
+         | sed -e "s+^\./+$(PREFIX)/+" \
+	 >> $(TOPDIR)$(LISTFILE)
+
+doclist:
+	@for f in $(INCLUDES); do \
+	  echo $(INCDIR)$$f >> $(TOPDIR)$(LISTFILE); \
+	done
+	@for f in $(patsubst %.o,%.cpp,$(LIBOBJ)); do \
+	  echo $(PREFIX)/$$f >> $(TOPDIR)$(LISTFILE); \
+	done
+
+snapshot:
+	find . -maxdepth 1 -type f -regex '.*/[^/]*\.\(c\|h\|cpp\|tag\)$$' \
+         | sed -e "s+^\./+$(PREFIX)/+" \
+	 >> $(TOPDIR)$(LISTFILE)
+	echo $(PREFIX)/Makefile.in >> $(TOPDIR)$(LISTFILE)
+
+test-bigNum$(EXE): bigNum.cpp bigNum.h
+	$(CC) $(TOPT) $(COPT) -o$@ $< $(LOPT) $(MYLIB)
+
+bigNum.o: bigNum.cpp bigNum.h
+
+.cpp.o:
+	@if test ! -e $*.tag; then \
+	 $(TOPDIR)version.sh $*.tag create; \
+	else \
+	 $(TOPDIR)version.sh $*.tag build; \
+	fi
+	$(CC) -c $(COPT) -DNO_DEBUG $<
+
+# external debugging objects
+.PHONY: debug_objects
+
+#debug_objects: wtBuffer.odg
+#wtBuffer.odg: wtBuffer.cpp wtBuffer.h
+
+.cpp.odg:
+	$(CC) -c $(COPT) -ggdb -o$*.odg $<
+
+clean:
+	$(DELETE) *.o
+	$(DELETE) test-*$(EXE)
+	$(DELETE) *$(EXE).stackdump
+
+veryclean:
+	$(DELETE) *.o
+	$(DELETE) -f *$(BAK)
+	$(DELETE) *$(EXE).stackdump
+	$(DELETE) *.a

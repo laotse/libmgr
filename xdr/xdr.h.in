@@ -1,0 +1,27 @@
+/*
+ *
+ * RFC 1832 - Sun XDR
+ * Data Types and endianess module, 
+ * i.e. from little endian to machine native
+ *
+ * (c) 2006 µAC - Microsystem Accessory Consult
+ * Dr. Lars Hanke
+ *
+ * $Id: xdr.h.in,v 1.3 2007-06-01 21:25:21 mgr Exp $
+ *
+ * This defines the classes:
+ *
+ * - all machine dependent types and values
+ *
+ * This defines the values:
+ *
+ */
+
+#ifndef _XDR_XDRBITS_H_
+# define _XDR_XDRBITS_H_
+
+@XDR_TYPES@
+
+@XDR_ENDIAN@
+
+#endif // _XDR_XDRBITS_H_

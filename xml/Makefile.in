@@ -1,0 +1,99 @@
+#
+# Makefile for application classes
+#
+# $Id: Makefile.in,v 1.7 2007-06-01 21:25:21 mgr Exp $
+#
+# see rule below for creation of this file
+
+
+TOPDIR := @TOPDIR@
+
+include @CONFDIR@Makefile.machine
+
+LIBINC := $(TOPDIR)$(INCDIR)
+
+MYLIB := $(TOPDIR)$(LIBDIR)@PACKAGE_TARNAME@.a
+
+TOPT = -DTEST -ggdb
+
+LIBOBJ=XMLTree.o XMLParser.o
+TESTS=test-XMLTree$(EXE) test-XMLParser$(EXE)
+INCLUDES=XMLTree.h XMLParser.h
+
+$(TOPDIR)$(LIBDIR)libxml.a: $(LIBOBJ)
+	ar rcs $@ $^
+	@RANLIB@ $@
+
+include:
+	@INSTALL@ -p -m 644 $(INCLUDES) $(LIBINC)
+
+install:
+	@INSTALL@ -p -m 644 $(INCLUDES) $(INSTINC)
+
+tags:
+	find . -maxdepth 1 -type f -regex '.*/[^/]*\.\(c\|h\|cpp\|tag\)$$' \
+         | sed -e "s+^\./+$(PREFIX)/+" \
+	 >> $(TOPDIR)$(LISTFILE)
+
+snapshot:
+	find . -maxdepth 1 -type f -regex '.*/[^/]*\.\(c\|h\|cpp\|tag\)$$' \
+         | sed -e "s+^\./+$(PREFIX)/+" \
+	 >> $(TOPDIR)$(LISTFILE)
+	echo $(PREFIX)/Makefile.in >> $(TOPDIR)$(LISTFILE)
+	echo $(PREFIX)/testcases.xml >> $(TOPDIR)$(LISTFILE)
+
+doclist:
+	@for f in $(INCLUDES); do \
+	  echo $(INCDIR)$$f >> $(TOPDIR)$(LISTFILE); \
+	done
+	@for f in $(patsubst %.o,%.cpp,$(LIBOBJ)); do \
+	  echo $(PREFIX)/$$f >> $(TOPDIR)$(LISTFILE); \
+	done
+
+#test:
+#	@echo "No tests yet for application classes"
+
+test: $(TESTS)
+	@echo "Created module tests:"
+	@$(LIST) test-*$(EXE)
+
+SRC_XMLTREE = XMLTree.cpp XMLTree.h
+SRC_XMLPARSER = XMLParser.cpp XMLParser.h
+
+../util/htree.odg: ../util/htree.cpp ../util/htree.h
+test-XMLTree$(EXE): XMLTree.odx ../util/htree.odg
+	$(CC) -o$@ $^ $(LOPT) $(MYLIB)
+
+../util/mgrError.odg: ../util/mgrError.cpp ../util/mgrError.h 
+test-XMLParser$(EXE): XMLParser.odx XMLTree.odg ../util/mgrError.odg ../util/htree.odg
+	$(CC) -o$@ $^ $(LOPT) -lexpat $(MYLIB)
+
+XMLTree.tag: $(SRC_XMLTREE)
+XMLParser.tag: $(SRC_XMLPARSER)
+
+%.tag:
+	@if test ! -e $*.tag; then \
+	 $(TOPDIR)version.sh $*.tag create; \
+	else \
+	 $(TOPDIR)version.sh $*.tag build; \
+	fi
+
+%.odg:	%.tag
+	$(CC) -c $(COPT) -ggdb -o$*.odg $*.cpp
+
+%.odx:	%.tag
+	$(CC) -c $(COPT) $(TOPT) -O0 -o$*.odx $*.cpp
+
+%.o:	%.tag
+	$(CC) -c $(COPT) -DNO_DEBUG $*.cpp
+
+.PHONY: clean veryclean
+clean:
+	$(DELETE) *.o *.odg *.odx
+	$(DELETE) test-*$(EXE)
+	$(DELETE) *$(EXE).stackdump
+
+veryclean:	clean
+	$(DELETE) -f *$(BAK)
+	$(DELETE) *.a
+

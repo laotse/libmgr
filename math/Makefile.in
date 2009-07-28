@@ -1,0 +1,110 @@
+#
+# Makefile for math classes
+#
+# $Id: Makefile.in,v 1.8 2007-06-01 21:25:20 mgr Exp $
+#
+# see rule below for creation of this file
+
+TOPDIR := @TOPDIR@
+
+include @CONFDIR@Makefile.machine
+
+LIBINC := $(TOPDIR)$(INCDIR)
+
+MYLIB := $(TOPDIR)$(LIBDIR)@PACKAGE_TARNAME@.a
+
+LIBOBJ=gamma.o infinitesimal.o interpolation.o discrete.o units.o
+TESTS=test-gamma$(EXE) test-infinitesimal$(EXE) test-discrete$(EXE) 
+TESTS+=test-units$(EXE)
+INCLUDES=highmath.h units.h
+MINCS =
+
+#LDBGOPT=-ggdb -DEXT_DEBUG -DNO_DEBUG
+LDBGOPT=-ggdb -DEXT_DEBUG
+
+$(TOPDIR)$(LIBDIR)libmath.a: $(LIBOBJ)
+	ar rcs $@ $^
+	@RANLIB@ $@
+
+all: $(LIBOBJ)
+
+include:
+	@INSTALL@ -p -m 644 $(INCLUDES) $(LIBINC)
+	if test ! -d $(LIBINC)machine; then @cmd_mkdir@ $(LIBINC)machine; fi
+#	@INSTALL@ -p -m 644 $(MINCS) $(LIBINC)machine
+
+install:
+	@INSTALL@ -p -m 644 $(INCLUDES) $(INSTINC)
+
+#test:
+#	@echo "No tests for module: Math"
+
+test: $(TESTS)
+	@echo "Created module tests:"
+	@$(LIST) test-*$(EXE)
+
+tags:
+	find . -maxdepth 1 -type f -regex '.*/[^/]*\.\(c\|h\|cpp\|tag\)$$' \
+         | sed -e "s+^\./+$(PREFIX)/+" \
+	 >> $(TOPDIR)$(LISTFILE)
+
+doclist:
+	@for f in $(INCLUDES); do \
+	  echo $(INCDIR)$$f >> $(TOPDIR)$(LISTFILE); \
+	done
+	@for f in $(patsubst %.o,%.cpp,$(LIBOBJ)); do \
+	  echo $(PREFIX)/$$f >> $(TOPDIR)$(LISTFILE); \
+	done
+
+snapshot:
+	find . -maxdepth 1 -type f -regex '.*/[^/]*\.\(c\|h\|cpp\|tag\)$$' \
+         | sed -e "s+^\./+$(PREFIX)/+" \
+	 >> $(TOPDIR)$(LISTFILE)
+	echo $(PREFIX)/Makefile.in >> $(TOPDIR)$(LISTFILE)
+
+SRC_GAMMA=gamma.cpp highmath.h
+SRC_INFIN=infinitesimal.cpp highmath.h
+SRC_INTERPOL=interpolation.cpp highmath.h
+SRC_DISCRETE=discrete.cpp highmath.h
+SRC_UNITS=units.cpp units.h
+
+#DBG_MOD_TAGGEDDATAFILE = htree.dbg.o BerTree.dbg.o asn1IO.dbg.o
+#test-TaggedDataFile$(EXE): $(SRC_TAGGEDDATAFILE) $(MYLIB) $(DBG_MOD_TAGGEDDATAFILE)
+#	$(CC) -DTEST $(COPT) -ggdb -o$@ $< $(LOPT) $(DBG_MOD_TAGGEDDATAFILE) $(MYLIB)
+
+test-gamma$(EXE): $(SRC_GAMMA) $(MYLIB)
+	$(CC) -DTEST $(COPT) -ggdb -o$@ $< $(LOPT) $(MYLIB)
+test-infinitesimal$(EXE): $(SRC_INFIN) $(MYLIB)
+	$(CC) -DTEST $(COPT) -ggdb -o$@ $< $(LOPT) $(MYLIB)
+test-discrete$(EXE): $(SRC_DISCRETE) $(MYLIB)
+	$(CC) -DTEST $(COPT) -ggdb -o$@ $< $(LOPT) $(MYLIB)
+test-units$(EXE): $(SRC_UNITS) $(MYLIB)
+	$(CC) -DTEST $(COPT) -ggdb -o$@ $< $(LOPT) $(MYLIB)
+
+units.odg: $(SRC_UNITS)
+	$(CC) -c $(COPT) -ggdb -o$@ $<
+
+gamma.o: $(SRC_GAMMA)
+infinitesimal.o: $(SRC_INFIN)
+interpolation.o: $(SRC_INTERPOL)
+units.o: $(SRC_UNITS)
+
+
+.cpp.o:
+	@if test ! -e $*.tag; then \
+	 $(TOPDIR)version.sh $*.tag create; \
+	else \
+	 $(TOPDIR)version.sh $*.tag build; \
+	fi
+	$(CC) -c $(COPT) -DNO_DEBUG $<
+
+clean:
+	$(DELETE) *.o
+	$(DELETE) test-*$(EXE)
+	$(DELETE) *$(EXE).stackdump
+
+veryclean:
+	$(DELETE) *.o
+	$(DELETE) -f *$(BAK)
+	$(DELETE) *$(EXE).stackdump
+	$(DELETE) *.a
