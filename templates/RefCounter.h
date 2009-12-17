@@ -23,6 +23,42 @@
 
 namespace mgr {
 
+  /*! \class RCObjectFlags
+      \brief Flags for a reference counted object
+
+      The RCObject class requires at least a single flag,
+      whether th eobject is sharable. But, for other applications
+      an RCObject may require further flags. Since the bool type
+      is not guranteed to be bit-packed, RCObject is defined as
+      a class template for various methods for storing this
+      sharable flag. The subclasses of RCObject may use further
+      information stored there. RCObjectFlags is the minimum
+      implementation. Extend this - you won't gain anything by
+      subclassing - for your needs and use it as template
+      parameter in RCObject.
+
+      \note RCObject assumes that the standard CTOR initializes
+      Sharable as true!
+  */
+
+  class RCObjectFlags {
+  protected:
+    bool Sharable;
+  public:
+    RCObjectFlags(bool init = true) : Sharable(init) {}
+    ~RCObjectFlags() {}
+    RCObjectFlags(const RCObjectFlags& f) : Sharable(f.sharable) {}
+    RCObjectFlags &operator=(const RCObjectFlags &f) {
+      Sharable = f.Sharable;
+      return *this;
+    }
+    bool sharable() const { return Sharable; }
+    bool sharable(bool &init){
+      Sharable = init;
+      return Sharable;
+    }
+  };
+
   /*! \class RCObject
       \brief Reference counter base class for inheriting
 
@@ -31,24 +67,25 @@ namespace mgr {
       but point to a reference counted object ideally using
       an RCPtr object.
 
-      This class shall be used as 
+      This class shall be used as
       \code class myContent : public RCObject; \endcode
 
       \note RCObject and RCPtr are taken from Scott Meyers
       <tt>More effective C++</tt>.
   */
+  template<class F = RCObjectFlags>
   class RCObject {
   protected:
     //! Number of instances using this content
     size_t refCount;
     //! If false, this copy is exclusive and cannot be shared
-    bool sharable;
-    
+    F Flags;
+
   public:
     //! Creation of new contents
-    RCObject() : refCount(0), sharable(true) {}
+    RCObject() : refCount(0) {}
     //! Deep-Copy of contents
-    RCObject(const RCObject&) : refCount(0), sharable(true) {}
+    RCObject(const RCObject&) : refCount(0) {}
     //! Assignemt of RCObject is empty
     RCObject& operator=(const RCObject&) { return *this; }
     //! empty DTOR
@@ -62,9 +99,9 @@ namespace mgr {
     }
     //! Mark as unsharable, i.e. deep-copy on next assignment
     /*! \sa RCPtr::init() */
-    inline void taint() { sharable = false; }
+    inline void taint() { Flags.sharable(false); }
     //! Check sharable property
-    inline bool isSharable() const { return sharable; }
+    inline bool isSharable() const { return Flags.sharable(); }
     //! Check whether we have more than one client
     inline bool isShared() const { return refCount > 1; }
   };
@@ -74,16 +111,16 @@ namespace mgr {
 
       This class does all the bookkeeping necessary
       to operate a RCObject. Make this class a
-      member of you interface class using the 
+      member of you interface class using the
       reference counted contents.
-      
+
       \note taint() must be maintained by the
       interface class, since RCPtr cannot
       know about oprations done to the content.
 
-      This class shall be used as 
-      \code 
-      class myContent : public RCObject;
+      This class shall be used as
+      \code
+      class myContent : public RCObject<>;
 
       class myInterface {
         protected:
@@ -100,7 +137,7 @@ namespace mgr {
       \endcode
 
       Consider to inherit from mgr::sol::Branchable for reference counted
-      interface classes: 
+      interface classes:
       \code class myInterface : public mgr::sol::Branchable; \endcode
 
       \note RCObject and RCPtr are taken from Scott Meyers
@@ -118,7 +155,7 @@ namespace mgr {
 	content is sharable, it simply acquires
 	another lock.
 
-        \note init() throws with new, but this is okay, 
+        \note init() throws with new, but this is okay,
         because it's used in CTORs only
     */
     inline void init(){
@@ -135,7 +172,7 @@ namespace mgr {
       T *np = NULL;
       try {
 	np = new T(*ptr);
-      } 
+      }
       catch( Exception& e ){
 #ifdef DEBUG_LOG
 	fprintf(DEBUG_LOG,e.what());
@@ -160,7 +197,7 @@ namespace mgr {
     /*! \sa RCObject::release() */
     ~RCPtr() { if(ptr) ptr->release(); }
     /*! \brief Assignement operator
-  
+
         The assignment operator copies
 	the contents by the rules stated
 	in init(). Since init() may throw,
@@ -208,10 +245,10 @@ namespace mgr {
 
     /*! \brief Support mgr::sol::Branchable
         \return Error code as defined in mgrError.h
-      
+
         This method assures that the current instance of the
 	contents is owned exclusively by this RCPtr. This
-	is particularly interesting for implementing 
+	is particularly interesting for implementing
 	<em>copy on write</em>. Call branch() before granting
 	a write pointer.
 
@@ -231,7 +268,7 @@ namespace mgr {
     inline m_error_t branch() throw() {
       return (ptr->isShared())? _branch() : ERR_NO_ERROR;
     }
-      
+
     //! Pointer interface dereferencing
     T* operator->() const { return ptr; }
     //! Pointer interface dereferencing
@@ -265,7 +302,7 @@ namespace mgr {
     };
     //! The pointer to the object container with the pointer to the data
     Counter *counter;
-    
+
     /*! \brief Common initialisations for all CTOR
 
         init() clones the contents, unless they are
@@ -273,7 +310,7 @@ namespace mgr {
 	content is sharable, it simply acquires
 	another lock.
 
-        \note init() throws with new, but this is okay, 
+        \note init() throws with new, but this is okay,
         because it's used in CTORs only
     */
     void init() {
@@ -323,7 +360,7 @@ namespace mgr {
       The Singleton is dynamic, because it may also have 0
       instances. The object of class derived is constructed
       and destroyed as it is needed.
-      
+
       The Singleton is not constructed using a standard
       CTOR, but using the static member function create().
 
@@ -332,7 +369,7 @@ namespace mgr {
       myClass *instance = mySingle::create();
       \endcode
 
-      Don't forget to implement the static variables 
+      Don't forget to implement the static variables
       somewhere in the code or get linkage errors:
 
       \code
@@ -403,8 +440,8 @@ namespace mgr {
       // myClass *myPtr = &myVal;
       DSingleton<myClass> myPtr;
       \endcode
-      
-      Don't forget to implement the static variables 
+
+      Don't forget to implement the static variables
       somewhere in the code or get linkage errors:
 
       \code
@@ -419,9 +456,9 @@ namespace mgr {
   private:
     //! The embedded singleton
     class Singleton {
-    private:      
+    private:
       //! Reference counter
-      static unsigned int Counter;  
+      static unsigned int Counter;
       //! Single instace pointer
       static Load *Object;
 
@@ -448,7 +485,7 @@ namespace mgr {
 	Counter = 0;
       }
     };
-    
+
   protected:
     Load *Object;
 
@@ -463,7 +500,7 @@ namespace mgr {
     }
 
     DSingleton& operator=(const DSingleton&){
-      if(Object == NULL) 
+      if(Object == NULL)
 	Object = Singleton::create();
       return *this;
     }
@@ -474,7 +511,7 @@ namespace mgr {
     Load *operator->() const { return Object; }
     Load& operator*() const { return *Object; }
     operator Load *() const { return Object; }
-    
+
   };
 
   /*! \class DSingleton
@@ -505,8 +542,8 @@ namespace mgr {
       // myClass myVal;
       DHSingleton<myClass> myPtr;
       \endcode
-      
-      Don't forget to implement the static variables 
+
+      Don't forget to implement the static variables
       somewhere in the code or get linkage errors:
 
       \code
@@ -521,7 +558,7 @@ namespace mgr {
       static methods in the Singleton. These are implemented
       to just throw. So for using the class template, it must
       be specilialized, i.e.:
-      
+
       \code
       template<> void mySingle::Singleton::init() {
         // put a value to Object
@@ -535,9 +572,9 @@ namespace mgr {
   private:
     //! The embedded singleton
     class Singleton {
-    private:      
+    private:
       //! Reference counter
-      static unsigned int Counter;  
+      static unsigned int Counter;
       //! Single instace pointer
       static Load Object;
 
@@ -548,7 +585,7 @@ namespace mgr {
 
     protected:
       static void init() { mgrThrow(ERR_INT_IMP); }
-      static void destroy() { mgrThrow(ERR_INT_IMP); }	
+      static void destroy() { mgrThrow(ERR_INT_IMP); }
 
     public:
       //! Static factory instead of CTOR
@@ -586,7 +623,7 @@ namespace mgr {
     }
 
     operator Load &() const { return Singleton::get(); }
-    
+
   };
 
 };

@@ -28,7 +28,7 @@ namespace mgr {
     virtual size_t size() const { return 0; }
   };
 
-  class RawMemoryRegion : public MemoryRegionInterface {  
+  class RawMemoryRegion : public MemoryRegionInterface {
   protected:
     const void *address;
     size_t length;
@@ -60,7 +60,7 @@ namespace mgr {
     };
 
     RawMemoryRegion() : address( NULL ), length( 0 ) {};
-    RawMemoryRegion( const void *_adr, const size_t& l ) : 
+    RawMemoryRegion( const void *_adr, const size_t& l ) :
       address( _adr ), length( l ) {}
 
     RawMemoryRegion& operator=( const RawMemoryRegion& r ){
@@ -83,24 +83,68 @@ namespace mgr {
     }
   };
 
+  class DescriptorFlags {
+  protected:
+    typedef unsigned char flag_t ;
+    enum FlagBits {
+      SHARABLE,
+      REFERENCE,
+      HIGH
+    };
+    flag_t flags;
+
+    bool check(const enum FlagBits& b) const {
+      return (flags & (1 << b)) != 0;
+    }
+
+    bool flag(const enum FlagBits& b, const bool& v) {
+      if(v){
+	flags |= (1 << b);
+      } else {
+	flags &= ~((flag_t)(1 << b));
+      }
+      return check(b);
+    }
+
+  public:
+    DescriptorFlags() : flags(1 << SHARABLE) {}
+    ~RCObjectFlags() {}
+    RCObjectFlags(const RCObjectFlags& f) : flags(f.flags) {}
+    RCObjectFlags &operator=(const RCObjectFlags &f) {
+      flags = f.flags;
+      return *this;
+    }
+    bool sharable() const { return check(SHARABLE); }
+    bool sharable(bool &init){
+      return flag(SHARABLE,init);
+    }
+    bool isReference() const { return check(REFERENCE);}
+    bool isReference(bool& init) {
+      return flag(REFERENCE,init);
+    }
+  };
+
   template<typename _Alloc = std::allocator<void> > class MemoryRegion {
   private:
-    class Descriptor : public RCObject {
+    class Descriptor : public RCObject<DescriptorFlags> {
     public:
       RawMemoryRegion region;
-      bool isReference;
 
-      Descriptor() : isReference( true ) {}
+      Descriptor() {}
       Descriptor( const RawMemoryRegion& r, bool copy = false ) {
 	if(!copy){
 	  region = r;
-	  isReference = true;
+	  Flags.isReference(true);
 	} else {
 	  region.set(_Alloc::allocate( r.length ), r.length );
-	  isReference = false;
+	  Flags.isReference(false);
 	}
       }
-      ~Descriptor {}
+      ~Descriptor() {
+	if(!Flags.isReference()){
+	  _Alloc::deallocate(r.address, r.length);
+	}
+      }
     };
 
 
@@ -117,9 +161,9 @@ namespace mgr {
       PointerProxy(MemoryRegion *_m) : m(_m) {}
       PointerProxy& operator=( const PointerProxy& rhs );
       PointerProxy& operator=( void * p );
-      
+
       operator void*() const { return m.Memory->region.ptr(); }
-	
+
     };
 
     MemoryRegion() : Memory( new Descriptor ) {}
@@ -128,7 +172,7 @@ namespace mgr {
       Memory = m.Memory;
     }
     ~Memory() {}
-    
+
     const size_t& size() const {
       return Memory->region.size();
     }
